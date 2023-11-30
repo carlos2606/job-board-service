@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./deploy/Dockerfile
+      target: prod
+    image: job_board_service:${JOB_BOARD_SERVICE_VERSION:-latest}
+    restart: always
+    env_file:
+    - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      JOB_BOARD_SERVICE_HOST: 0.0.0.0
+      JOB_BOARD_SERVICE_DB_HOST: job_board_service-db
+      JOB_BOARD_SERVICE_DB_PORT: 5432
+      JOB_BOARD_SERVICE_DB_USER: job_board_service
+      JOB_BOARD_SERVICE_DB_PASS: job_board_service
+      JOB_BOARD_SERVICE_DB_BASE: job_board_service
+
+  db:
+    image: postgres:13.8-bullseye
+    hostname: job_board_service-db
+    environment:
+      POSTGRES_PASSWORD: "job_board_service"
+      POSTGRES_USER: "job_board_service"
+      POSTGRES_DB: "job_board_service"
+    volumes:
+    - job_board_service-db-data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: pg_isready -U job_board_service
+      interval: 2s
+      timeout: 3s
+      retries: 40
+
+  migrator:
+    image: job_board_service:${JOB_BOARD_SERVICE_VERSION:-latest}
+    restart: "no"
+    command: alembic upgrade head
+    environment:
+      JOB_BOARD_SERVICE_DB_HOST: job_board_service-db
+      JOB_BOARD_SERVICE_DB_PORT: 5432
+      JOB_BOARD_SERVICE_DB_USER: job_board_service
+      JOB_BOARD_SERVICE_DB_PASS: job_board_service
+      JOB_BOARD_SERVICE_DB_BASE: job_board_service
+    depends_on:
+      db:
+        condition: service_healthy
+
+
+
+volumes:
+  job_board_service-db-data:
+    name: job_board_service-db-data
